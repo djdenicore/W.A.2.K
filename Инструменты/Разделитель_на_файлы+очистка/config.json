@@ -1,0 +1,9 @@
+{
+  "input_dir": "C:/Users/Protogen/Desktop/21/html",
+  "output_dir": "C:/Users/Protogen/Desktop/21/html/fixed",
+  "html_dir": "html",
+  "css_dir": "css",
+  "remove_wayback_banner": true,
+  "remove_scripts": true,
+  "remove_archive_css": true
+}

@@ -24,7 +24,7 @@
 Dependencies: `pip install beautifulsoup4 requests`
 ## 4. [HTML separator into HTML and CSS](https://github.com/DeniProtoshark/W.A.T.K/tree/main/%D0%98%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BC%D0%B5%D0%BD%D1%82%D1%8B/%D0%A0%D0%B0%D0%B7%D0%B4%D0%B5%D0%BB%D0%B8%D1%82%D0%B5%D0%BB%D1%8C_%D0%BD%D0%B0_%D1%84%D0%B0%D0%B9%D0%BB%D1%8B%2B%D0%BE%D1%87%D0%B8%D1%81%D1%82%D0%BA%D0%B0 )
 Dependencies: `pip install beautifulsoup4`
-##5. [Recording track metadata](https://github.com/djdenicore/W.A.2.K/releases/download/W.A.2.K/Metadata .Creator.exe )
+## 5. [Recording track metadata](https://github.com/djdenicore/W.A.2.K/releases/download/W.A.2.K/Metadata.Creator.exe)
 Dependencies: `pip install mutagen rich`
-##6. [Music Converter](https://github.com/djdenicore/W.A.2.K/releases/download/W.A.2.K/Music.Converter.exe )
+## 6. [Music Converter](https://github.com/djdenicore/W.A.2.K/releases/download/W.A.2.K/Music.Converter.exe )
 Dependencies of `pip install ffmpeg-python colorama`

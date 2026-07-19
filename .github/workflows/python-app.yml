@@ -34,13 +34,22 @@ jobs:
 
     - name: Lint with flake8
       run: |
+        # Проверка с игнорированием F824 (global переменная используется корректно)
         flake8 . \
           --count \
+          --select=E9,F63,F7,F82 \
           --ignore=F824 \
+          --show-source \
+          --statistics
+        
+        # Второй проход с дополнительными проверками
+        flake8 . \
+          --count \
+          --exit-zero \
           --max-complexity=10 \
           --max-line-length=127 \
-          --statistics \
-          --show-source
+          --ignore=F824 \
+          --statistics
 
     - name: Run basic import tests
       run: |

@@ -1,3 +1,9 @@
+"""
+MetaForge v3.0 - Professional Audio Metadata Editor
+Author: DJ Denicore
+Description: Advanced tool for editing audio metadata with cover art support
+"""
+
 import os
 import re
 import tkinter as tk
@@ -32,6 +38,9 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 console = Console()
 
 # ================= SETTINGS =================
+VERSION = "3.0"
+APP_NAME = "MetaForge"
+
 SUPPORTED_EXT = (".mp3", ".flac", ".ogg", ".wav", ".m4a", ".aac", ".opus")
 COVER_EXT = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp")
 
@@ -58,9 +67,9 @@ CURRENT_FOLDER = None
 # ================= LANGUAGES =================
 TEXTS = {
     "EN": {
+        "app_title": "MetaForge v3.0",
         "select_folder": "Select folder with audio files",
         "folder_not_selected": "Folder not selected.",
-        "meta_title": "MetaForge v2.0",
         "current_folder": "Folder",
         "artist_track": "Artist - Track",
         "tracknum_artist_track": "01 Artist - Track",
@@ -102,9 +111,9 @@ TEXTS = {
         "upscale_small": "Upscale small covers"
     },
     "RU": {
+        "app_title": "MetaForge v3.0",
         "select_folder": "Выберите папку с треками",
         "folder_not_selected": "Папка не выбрана.",
-        "meta_title": "MetaForge v2.0",
         "current_folder": "Папка",
         "artist_track": "Автор - Трек",
         "tracknum_artist_track": "01 Автор - Трек",
@@ -776,6 +785,7 @@ def rename_file(path, format_type="basic"):
 
 # ================= MENUS =================
 def ask_folder():
+    """Открывает диалог выбора папки"""
     global CURRENT_FOLDER
     root = tk.Tk()
     root.withdraw()
@@ -839,6 +849,7 @@ def settings_menu():
             return
 
 def ensure_folder():
+    """Проверяет, выбрана ли папка; если нет – запрашивает."""
     global CURRENT_FOLDER
     if CURRENT_FOLDER is None:
         console.print(f"[yellow]{t('folder_required')}[/yellow]")
@@ -861,7 +872,7 @@ def draw_main_menu():
         f"[dim]{t('write_mode_lbl')}:[/dim] {write_status}  |  [dim]Recursive:[/dim] {recursive_status}  |  [dim]Force:[/dim] {force_status}\n"
         f"[dim]Ignore Small:[/dim] {ignore_status}  |  [dim]Upscale:[/dim] {upscale_status}  |  [dim]Size:[/dim] {SETTINGS['cover_size'][0]}x{SETTINGS['cover_size'][1]}"
     )
-    console.print(Panel(header, title=f"[bold magenta]{t('meta_title')}[/bold magenta]", expand=False, box=box.ROUNDED))
+    console.print(Panel(header, title=f"[bold magenta]{t('app_title')}[/bold magenta]", expand=False, box=box.ROUNDED))
     
     menu_table = Table(box=box.SIMPLE, show_header=False)
     menu_table.add_column("Key", style="bold yellow", justify="right")

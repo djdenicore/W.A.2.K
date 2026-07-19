@@ -32,22 +32,15 @@ jobs:
         pip install mutagen pillow rich
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    - name: Lint with flake8 (critical errors only)
+    - name: Lint with flake8
       run: |
-        # Проверка критических ошибок (синтаксис, неопределённые переменные и т.д.)
         flake8 . \
           --count \
-          --select=E9,F63,F7,F82 \
-          --show-source \
-          --statistics
-        # Игнорируем F824 (global переменная используется корректно)
-        flake8 . \
-          --count \
-          --exit-zero \
+          --ignore=F824 \
           --max-complexity=10 \
           --max-line-length=127 \
-          --ignore=F824 \
-          --statistics
+          --statistics \
+          --show-source
 
     - name: Run basic import tests
       run: |

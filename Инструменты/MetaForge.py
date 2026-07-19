@@ -1,7 +1,8 @@
 """
-MetaForge v3.0 - Professional Audio Metadata Editor
+MetaForge v3.1 - Professional Audio Metadata Editor
 Author: DJ Denicore
 Description: Advanced tool for editing audio metadata with cover art support
+Features: ffprobe integration, Drag & Drop support
 """
 
 import os
@@ -11,6 +12,9 @@ from tkinter import filedialog
 import sys
 import io
 import base64
+import subprocess
+import json
+from datetime import datetime
 
 try:
     from mutagen import File
@@ -38,6 +42,9 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 console = Console()
 
 # ================= SETTINGS =================
+VERSION = "3.1"
+APP_NAME = "MetaForge"
+
 SUPPORTED_EXT = (".mp3", ".flac", ".ogg", ".wav", ".m4a", ".aac", ".opus")
 COVER_EXT = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp")
 
@@ -56,7 +63,8 @@ SETTINGS = {
     "recursive": True,
     "force_cover": True,
     "ignore_small_covers": True,
-    "upscale_small": True
+    "upscale_small": True,
+    "use_ffprobe": True  # Использовать ffprobe для чтения метаданных
 }
 
 CURRENT_FOLDER = None
@@ -64,9 +72,9 @@ CURRENT_FOLDER = None
 # ================= LANGUAGES =================
 TEXTS = {
     "EN": {
+        "app_title": f"MetaForge v{VERSION}",
         "select_folder": "Select folder with audio files",
         "folder_not_selected": "Folder not selected.",
-        "meta_title": "MetaForge v2.0",
         "current_folder": "Folder",
         "artist_track": "Artist - Track",
         "tracknum_artist_track": "01 Artist - Track",
@@ -105,12 +113,15 @@ TEXTS = {
         "process_subfolders": "Process subfolders",
         "force_cover": "Force replace cover",
         "ignore_small": "Ignore small covers (AlbumArtSmall)",
-        "upscale_small": "Upscale small covers"
+        "upscale_small": "Upscale small covers",
+        "drag_drop_detected": "Drag & Drop detected",
+        "use_ffprobe": "Use ffprobe for metadata",
+        "ffprobe_not_found": "ffprobe not found, using mutagen fallback"
     },
     "RU": {
+        "app_title": f"MetaForge v{VERSION}",
         "select_folder": "Выберите папку с треками",
         "folder_not_selected": "Папка не выбрана.",
-        "meta_title": "MetaForge v2.0",
         "current_folder": "Папка",
         "artist_track": "Автор - Трек",
         "tracknum_artist_track": "01 Автор - Трек",
@@ -149,7 +160,10 @@ TEXTS = {
         "process_subfolders": "Обрабатывать подпапки",
         "force_cover": "Принудительно заменить обложку",
         "ignore_small": "Игнорировать маленькие обложки",
-        "upscale_small": "Увеличивать маленькие обложки"
+        "upscale_small": "Увеличивать маленькие обложки",
+        "drag_drop_detected": "Обнаружено перетаскивание",
+        "use_ffprobe": "Использовать ffprobe для метаданных",
+        "ffprobe_not_found": "ffprobe не найден, используется mutagen"
     }
 }
 
@@ -158,6 +172,77 @@ def t(key):
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
+
+# ================= FFPROBE FUNCTIONS =================
+def check_ffprobe():
+    """Проверяет доступность ffprobe"""
+    try:
+        subprocess.run(['ffprobe', '-version'], capture_output=True, check=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+def get_audio_info_ffprobe(filepath: str) -> dict:
+    """Получает информацию об аудиофайле через ffprobe"""
+    info = {
+        'artist': '',
+        'title': '',
+        'album': '',
+        'track': '',
+        'duration': 0,
+        'bitrate': 0,
+        'sample_rate': 0,
+        'codec': '',
+        'size': os.path.getsize(filepath),
+        'path': filepath,
+        'filename': os.path.basename(filepath),
+    }
+    
+    try:
+        cmd = [
+            'ffprobe',
+            '-v', 'quiet',
+            '-print_format', 'json',
+            '-show_format',
+            '-show_streams',
+            filepath
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        
+        if result.returncode == 0 and result.stdout:
+            data = json.loads(result.stdout)
+            
+            # Находим аудио поток
+            audio_stream = None
+            for stream in data.get('streams', []):
+                if stream.get('codec_type') == 'audio':
+                    audio_stream = stream
+                    break
+            
+            if audio_stream:
+                info['duration'] = float(audio_stream.get('duration', 0))
+                info['bitrate'] = int(audio_stream.get('bit_rate', 0))
+                info['sample_rate'] = int(audio_stream.get('sample_rate', 0))
+                info['codec'] = audio_stream.get('codec_name', '')
+            
+            # Информация из формата
+            if data.get('format'):
+                fmt = data['format']
+                info['duration'] = float(fmt.get('duration', info['duration']))
+                info['bitrate'] = int(fmt.get('bit_rate', info['bitrate']))
+                
+                tags = fmt.get('tags', {})
+                info['artist'] = tags.get('artist', '')
+                info['title'] = tags.get('title', '')
+                info['album'] = tags.get('album', '')
+                info['track'] = tags.get('track', '')
+    except Exception as e:
+        if SETTINGS["lang"] == "RU":
+            console.print(f"[yellow]Ошибка ffprobe: {e}[/yellow]")
+        else:
+            console.print(f"[yellow]ffprobe error: {e}[/yellow]")
+    
+    return info
 
 # ================= COVER FUNCTIONS =================
 def is_small_cover(filename):
@@ -618,6 +703,11 @@ def scan_files(folder, mode=None, title_only=False, recursive=True):
     if recursive:
         console.print("[dim]Recursive mode: processing all subfolders[/dim]")
     
+    if SETTINGS["use_ffprobe"] and check_ffprobe():
+        console.print("[dim]Using ffprobe for metadata extraction[/dim]")
+    elif SETTINGS["use_ffprobe"]:
+        console.print("[yellow]" + t('ffprobe_not_found') + "[/yellow]")
+    
     count = 0
     audio_files = []
     
@@ -659,7 +749,30 @@ def process_file(path, mode=None, title_only=False):
     
     console.print(f"\n[cyan]{filename}[/cyan]")
     
+    # Пробуем получить метаданные через ffprobe если включено
+    meta_from_file = {}
+    if SETTINGS["use_ffprobe"] and check_ffprobe():
+        info = get_audio_info_ffprobe(path)
+        if info.get('artist') or info.get('title'):
+            meta_from_file = {
+                'artist': info.get('artist', ''),
+                'title': info.get('title', ''),
+                'genre': info.get('genre', ''),
+                'bpm': None,
+                'mix': None
+            }
+            console.print(f"  [dim]Using ffprobe metadata[/dim]")
+    
+    # Парсим из имени файла
     meta = parse_track_metadata(name)
+    
+    # Если есть данные из ffprobe, используем их как основу
+    if meta_from_file.get('artist') or meta_from_file.get('title'):
+        if not meta_from_file.get('artist') and meta.get('artist'):
+            meta_from_file['artist'] = meta['artist']
+        if not meta_from_file.get('title') and meta.get('title'):
+            meta_from_file['title'] = meta['title']
+        meta = meta_from_file
     
     if title_only:
         meta["title"] = normalize(name)
@@ -808,11 +921,12 @@ def settings_menu():
         table.add_row("6", f"{t('force_cover')}: [bold cyan]{SETTINGS['force_cover']}[/bold cyan]")
         table.add_row("7", f"{t('ignore_small')}: [bold cyan]{SETTINGS['ignore_small_covers']}[/bold cyan]")
         table.add_row("8", f"{t('upscale_small')}: [bold cyan]{SETTINGS['upscale_small']}[/bold cyan]")
+        table.add_row("9", f"{t('use_ffprobe')}: [bold cyan]{SETTINGS['use_ffprobe']}[/bold cyan]")
         table.add_row("0", f"[dim]{t('back')}[/dim]")
         
         console.print(Panel(table, title=f"[bold]{t('settings')}[/bold]", expand=False, border_style="blue"))
         
-        c = Prompt.ask("Choice", choices=["1", "2", "3", "4", "5", "6", "7", "8", "0"])
+        c = Prompt.ask("Choice", choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"])
         if c == "1":
             SETTINGS["clean_underscores"] = not SETTINGS["clean_underscores"]
         elif c == "2":
@@ -841,6 +955,11 @@ def settings_menu():
             SETTINGS["ignore_small_covers"] = not SETTINGS["ignore_small_covers"]
         elif c == "8":
             SETTINGS["upscale_small"] = not SETTINGS["upscale_small"]
+        elif c == "9":
+            SETTINGS["use_ffprobe"] = not SETTINGS["use_ffprobe"]
+            if SETTINGS["use_ffprobe"] and not check_ffprobe():
+                console.print("[yellow]" + t('ffprobe_not_found') + "[/yellow]")
+                Prompt.ask("Press Enter to continue...")
         elif c == "0":
             return
 
@@ -860,14 +979,16 @@ def draw_main_menu():
     force_status = "[green]ON[/green]" if SETTINGS["force_cover"] else "[red]OFF[/red]"
     ignore_status = "[green]ON[/green]" if SETTINGS["ignore_small_covers"] else "[red]OFF[/red]"
     upscale_status = "[green]ON[/green]" if SETTINGS["upscale_small"] else "[red]OFF[/red]"
+    ffprobe_status = "[green]ON[/green]" if SETTINGS["use_ffprobe"] else "[red]OFF[/red]"
     folder_display = CURRENT_FOLDER if CURRENT_FOLDER else "[dim]Not selected[/dim]"
     
     header = (
         f"[dim]{t('current_folder')}:[/dim] [bold cyan]{folder_display}[/bold cyan]\n"
         f"[dim]{t('write_mode_lbl')}:[/dim] {write_status}  |  [dim]Recursive:[/dim] {recursive_status}  |  [dim]Force:[/dim] {force_status}\n"
-        f"[dim]Ignore Small:[/dim] {ignore_status}  |  [dim]Upscale:[/dim] {upscale_status}  |  [dim]Size:[/dim] {SETTINGS['cover_size'][0]}x{SETTINGS['cover_size'][1]}"
+        f"[dim]Ignore Small:[/dim] {ignore_status}  |  [dim]Upscale:[/dim] {upscale_status}  |  [dim]ffprobe:[/dim] {ffprobe_status}\n"
+        f"[dim]Size:[/dim] {SETTINGS['cover_size'][0]}x{SETTINGS['cover_size'][1]}"
     )
-    console.print(Panel(header, title=f"[bold magenta]{t('meta_title')}[/bold magenta]", expand=False, box=box.ROUNDED))
+    console.print(Panel(header, title=f"[bold magenta]{t('app_title')}[/bold magenta]", expand=False, box=box.ROUNDED))
     
     menu_table = Table(box=box.SIMPLE, show_header=False)
     menu_table.add_column("Key", style="bold yellow", justify="right")
@@ -929,6 +1050,45 @@ def main_loop():
 # ================= RUN =================
 if __name__ == "__main__":
     try:
+        # Проверка на drag & drop (передача папки как аргумент)
+        args = sys.argv[1:]
+        if args:
+            first_path = os.path.abspath(args[0])
+            if os.path.isdir(first_path):
+                folder = first_path
+            elif os.path.isfile(first_path):
+                folder = os.path.dirname(first_path)
+            else:
+                folder = None
+            
+            if folder:
+                global CURRENT_FOLDER
+                CURRENT_FOLDER = folder
+                console.print(f"\n[bold green]📁 {t('drag_drop_detected')}:[/bold green] {folder}")
+                if Confirm.ask(f"[bold]Process files in this folder?[/bold]", default=True):
+                    console.print("\n[dim]Select action:[/dim]")
+                    console.print("1. Artist - Track")
+                    console.print("2. 01 Artist - Track")
+                    console.print("3. All filename as TITLE")
+                    console.print("4. Rename: Artist - Track")
+                    console.print("5. Rename: 01 Artist - Track")
+                    console.print("6. Add covers")
+                    action = Prompt.ask("Choice", choices=["1","2","3","4","5","6"])
+                    
+                    if action == "1":
+                        scan_files(folder, mode="basic", recursive=SETTINGS["recursive"])
+                    elif action == "2":
+                        scan_files(folder, mode="tracknum", recursive=SETTINGS["recursive"])
+                    elif action == "3":
+                        scan_files(folder, title_only=True, recursive=SETTINGS["recursive"])
+                    elif action == "4":
+                        rename_files(folder, format_type="basic", recursive=SETTINGS["recursive"])
+                    elif action == "5":
+                        rename_files(folder, format_type="tracknum", recursive=SETTINGS["recursive"])
+                    elif action == "6":
+                        add_covers_to_folder(folder, SETTINGS["recursive"], SETTINGS["force_cover"])
+                    return
+        
         main_loop()
     except KeyboardInterrupt:
         console.print("\n[yellow]Aborted.[/yellow]")

@@ -1047,7 +1047,7 @@ def main_loop():
             elif choice == "5":
                 rename_files(CURRENT_FOLDER, format_type="tracknum", recursive=SETTINGS["recursive"])
 
-# ================= RUN =================
+## ================= RUN =================
 if __name__ == "__main__":
     try:
         # Проверка на drag & drop (передача папки как аргумент)
@@ -1087,7 +1087,7 @@ if __name__ == "__main__":
                         rename_files(folder, format_type="tracknum", recursive=SETTINGS["recursive"])
                     elif action == "6":
                         add_covers_to_folder(folder, SETTINGS["recursive"], SETTINGS["force_cover"])
-                    return
+                    sys.exit(0)
         
         main_loop()
     except KeyboardInterrupt:

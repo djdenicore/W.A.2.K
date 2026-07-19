@@ -1047,7 +1047,7 @@ def main_loop():
             elif choice == "5":
                 rename_files(CURRENT_FOLDER, format_type="tracknum", recursive=SETTINGS["recursive"])
 
-## ================= RUN =================
+# ================= RUN =================
 if __name__ == "__main__":
     try:
         # Проверка на drag & drop (передача папки как аргумент)
@@ -1062,7 +1062,7 @@ if __name__ == "__main__":
                 folder = None
             
             if folder:
-                global CURRENT_FOLDER
+                # Убираем global CURRENT_FOLDER - она уже глобальная
                 CURRENT_FOLDER = folder
                 console.print(f"\n[bold green]📁 {t('drag_drop_detected')}:[/bold green] {folder}")
                 if Confirm.ask(f"[bold]Process files in this folder?[/bold]", default=True):
@@ -1087,6 +1087,8 @@ if __name__ == "__main__":
                         rename_files(folder, format_type="tracknum", recursive=SETTINGS["recursive"])
                     elif action == "6":
                         add_covers_to_folder(folder, SETTINGS["recursive"], SETTINGS["force_cover"])
+                    
+                    # Выходим после обработки drag & drop
                     sys.exit(0)
         
         main_loop()

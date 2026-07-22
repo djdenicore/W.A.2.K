@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Audio Converter PRO v3.0
-Professional audio converter with drag&drop, rich UI, settings, dry-run and more.
+Audio Converter PRO v3.2 – Final (full redraw on each action)
+Author: DJ Denicore
 """
 
 import os
@@ -15,12 +15,6 @@ import subprocess
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
-
-# =============================================================================
-# Clear screen function
-# =============================================================================
-def clear_screen():
-    os.system('cls' if os.name == 'nt' else 'clear')
 
 # =============================================================================
 # Optional GUI folder picker (tkinter)
@@ -45,9 +39,6 @@ try:
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
-    # Fallback to simple prints if rich not installed
-    def rprint(*args, **kwargs):
-        print(*args)
 
 # =============================================================================
 # Configuration / Constants
@@ -276,7 +267,6 @@ DEFAULT_SETTINGS = {
 
 TRANSLATIONS = {
     'en': {
-        # Main menu
         'program_name': 'Audio Converter PRO',
         'main_title': 'MAIN MENU',
         'menu_start': 'Start conversion',
@@ -284,7 +274,6 @@ TRANSLATIONS = {
         'menu_ffmpeg': 'FFmpeg info',
         'menu_about': 'About',
         'menu_exit': 'Exit',
-        # Settings
         'settings_title': 'SETTINGS',
         'setting_language': 'Language',
         'setting_delete_original': 'Delete original files after conversion',
@@ -294,8 +283,9 @@ TRANSLATIONS = {
         'setting_auto_confirm': 'Auto-confirm all prompts',
         'setting_output_format': 'Default output format',
         'setting_show_progress': 'Show progress bar',
+        'setting_preserve_cover': 'Preserve cover art (if present)',
+        'setting_force_reencode': 'Force re-encode even if same format',
         'back': 'Back',
-        # Conversion
         'select_folder': 'Select source folder',
         'enter_path': 'Enter path (or drag folder)',
         'folder_not_found': 'Folder not found',
@@ -323,12 +313,10 @@ TRANSLATIONS = {
         'log_file': 'Log file',
         'dry_run_mode': 'DRY-RUN MODE - no files will be changed',
         'cancel': 'Cancel',
-        # About
-        'about_version': 'Version 3.0',
+        'about_version': 'Version 3.2',
         'about_desc': 'Professional audio file converter powered by FFmpeg.',
         'about_features': 'Features',
         'about_tech': 'Technologies',
-        # Misc
         'yes': 'Yes',
         'no': 'No',
         'enter_choice': 'Enter your choice',
@@ -339,7 +327,6 @@ TRANSLATIONS = {
         'info': 'Info',
         'warning': 'Warning',
         'error': 'Error',
-        # Format names (used in menus)
         'format_wav': 'WAV',
         'format_wav_desc': 'Uncompressed PCM',
         'format_flac': 'FLAC',
@@ -356,30 +343,24 @@ TRANSLATIONS = {
         'format_m4a_desc': 'MPEG-4 Audio',
         'format_alac': 'ALAC',
         'format_alac_desc': 'Apple Lossless',
-        # Bit depth names
         'bit_depth_16': '16-bit integer',
         'bit_depth_24': '24-bit integer',
         'bit_depth_32': '32-bit integer',
         'bit_depth_32float': '32-bit float',
         'bit_depth_64float': '64-bit float',
-        # Compression
         'flac_compression_fastest': 'Fastest',
         'flac_compression_standard': 'Standard',
         'flac_compression_best': 'Best compression',
-        # Bitrates
         'bitrate_low': 'Low',
         'bitrate_medium': 'Medium',
         'bitrate_standard': 'Standard',
         'bitrate_high': 'High',
         'bitrate_very_high': 'Very High',
         'bitrate_max': 'Maximum',
-        # MP3 quality
         'mp3_quality_best': 'Best quality',
         'mp3_quality_worst': 'Worst quality',
-        # OGG quality
         'ogg_quality_worst': 'Worst',
         'ogg_quality_best': 'Best',
-        # Sample rates
         'sample_rate_8k': '8 kHz',
         'sample_rate_11k': '11.025 kHz',
         'sample_rate_16k': '16 kHz',
@@ -391,7 +372,6 @@ TRANSLATIONS = {
         'sample_rate_96k': '96 kHz',
         'sample_rate_176k': '176.4 kHz',
         'sample_rate_192k': '192 kHz',
-        # Channels
         'channels_mono': 'Mono',
         'channels_stereo': 'Stereo',
         'channels_quad': 'Quad',
@@ -415,6 +395,8 @@ TRANSLATIONS = {
         'setting_auto_confirm': 'Автоподтверждение всех запросов',
         'setting_output_format': 'Формат по умолчанию',
         'setting_show_progress': 'Показывать прогресс-бар',
+        'setting_preserve_cover': 'Сохранять обложку (если есть)',
+        'setting_force_reencode': 'Принудительное перекодирование (даже если формат совпадает)',
         'back': 'Назад',
         'select_folder': 'Выберите исходную папку',
         'enter_path': 'Введите путь (или перетащите папку)',
@@ -443,7 +425,7 @@ TRANSLATIONS = {
         'log_file': 'Лог-файл',
         'dry_run_mode': 'РЕЖИМ ПРОБНОГО ЗАПУСКА - изменения не будут записаны',
         'cancel': 'Отмена',
-        'about_version': 'Версия 3.0',
+        'about_version': 'Версия 3.2',
         'about_desc': 'Профессиональный конвертер аудиофайлов на базе FFmpeg.',
         'about_features': 'Возможности',
         'about_tech': 'Технологии',
@@ -515,8 +497,6 @@ TRANSLATIONS = {
 # =============================================================================
 
 class Settings:
-    """Global settings manager with persistence."""
-
     CONFIG_FILE = os.path.join(os.path.expanduser("~"), ".audio_converter_config.json")
 
     def __init__(self):
@@ -526,15 +506,16 @@ class Settings:
         self.preserve_structure = False
         self.dry_run = False
         self.auto_confirm = False
-        self.output_format = 'mp3'        # default format key
-        self.bitrate = '192k'             # default bitrate string
-        self.sample_rate = 44100          # default sample rate
-        self.channels = 2                 # default channels
-        self.show_progress = True         # show progress bar
+        self.output_format = 'flac'
+        self.bitrate = '192k'
+        self.sample_rate = 44100
+        self.channels = 2
+        self.show_progress = True
+        self.preserve_cover = True
+        self.force_reencode = True
         self.load()
 
     def load(self):
-        """Load settings from JSON file."""
         if os.path.exists(self.CONFIG_FILE):
             try:
                 with open(self.CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -546,19 +527,11 @@ class Settings:
                 pass
 
     def save(self):
-        """Save settings to JSON file."""
         try:
             with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump(self.__dict__, f, indent=2, ensure_ascii=False)
         except Exception:
             pass
-
-    def get(self, key, default=None):
-        return getattr(self, key, default)
-
-    def set(self, key, value):
-        setattr(self, key, value)
-        self.save()
 
 
 # =============================================================================
@@ -570,7 +543,6 @@ class Locale:
         self.lang = lang
 
     def t(self, key):
-        """Get translation string by key."""
         return TRANSLATIONS.get(self.lang, TRANSLATIONS['en']).get(key, key)
 
 
@@ -584,7 +556,6 @@ class AudioConverter:
         self.locale = Locale(self.settings.language)
         self.console = Console() if RICH_AVAILABLE else None
 
-        # Conversion statistics
         self.total_files = 0
         self.converted_files = 0
         self.failed_files = 0
@@ -592,11 +563,26 @@ class AudioConverter:
         self.start_time = 0
         self.source_folder = ""
 
-        # Check FFmpeg availability
         self.ffmpeg_available = self._check_ffmpeg()
 
+    # ====================================================================
+    # Очистка экрана – максимально надёжная
+    # ====================================================================
+    def clear_screen(self):
+        # Сначала пробуем rich (если доступен)
+        if self.console and RICH_AVAILABLE:
+            self.console.clear()
+        else:
+            # fallback – системная команда
+            if os.name == 'nt':
+                os.system('cls')
+            else:
+                os.system('clear')
+        # Дополнительно сбрасываем буфер прокрутки (ANSI)
+        sys.stdout.write('\033[3J')
+        sys.stdout.flush()
+
     def _check_ffmpeg(self) -> bool:
-        """Check if ffmpeg is in PATH."""
         try:
             result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True, check=False)
             return result.returncode == 0
@@ -608,19 +594,6 @@ class AudioConverter:
             self.console.print(message, style=style)
         else:
             print(message)
-
-    def _print_table(self, title, columns, rows):
-        if self.console:
-            table = Table(title=title)
-            for col in columns:
-                table.add_column(col)
-            for row in rows:
-                table.add_row(*[str(cell) for cell in row])
-            self.console.print(table)
-        else:
-            print(f"\n{title}")
-            for row in rows:
-                print("  ".join(str(cell) for cell in row))
 
     def _prompt_choice(self, prompt, choices, default=None):
         if self.console:
@@ -643,7 +616,6 @@ class AudioConverter:
             return ans in ('', 'y', 'yes')
 
     def _select_folder_gui(self):
-        """Open folder picker dialog using tkinter."""
         if TKINTER_AVAILABLE:
             root = tk.Tk()
             root.withdraw()
@@ -653,13 +625,9 @@ class AudioConverter:
         return None
 
     def _get_folder(self):
-        """Get folder path from user (GUI or manual)."""
-        # Try GUI first
         folder = self._select_folder_gui()
         if folder:
             return folder
-
-        # Manual input
         print(f"\n{self.locale.t('enter_path')}:")
         print(f"({self.locale.t('cancel')}: leave empty)")
         path = input("> ").strip()
@@ -673,7 +641,6 @@ class AudioConverter:
             return None
 
     def _scan_directory(self, folder: str, recursive: bool) -> List[str]:
-        """Scan folder for supported audio files."""
         files = []
         if not os.path.isdir(folder):
             return files
@@ -696,7 +663,6 @@ class AudioConverter:
         return files
 
     def _get_file_info(self, filepath: str) -> Dict[str, Any]:
-        """Get basic audio info using ffprobe."""
         info = {
             'format': 'unknown',
             'duration': 0,
@@ -708,7 +674,6 @@ class AudioConverter:
             'filename': os.path.basename(filepath)
         }
         try:
-            # Use ffprobe if available
             cmd = [
                 'ffprobe', '-v', 'quiet',
                 '-print_format', 'json',
@@ -718,7 +683,6 @@ class AudioConverter:
             result = subprocess.run(cmd, capture_output=True, text=True, check=False)
             if result.returncode == 0:
                 data = json.loads(result.stdout)
-                # Find audio stream
                 audio_stream = None
                 for stream in data.get('streams', []):
                     if stream.get('codec_type') == 'audio':
@@ -757,8 +721,6 @@ class AudioConverter:
         return f"{hours}h {mins}m {secs}s"
 
     def _get_output_path(self, input_path: str, output_dir: str, target_format: str) -> str:
-        """Generate output file path, handling name collisions."""
-        # Find extension
         ext = None
         for fmt in AUDIO_FORMATS.values():
             if fmt['key'] == target_format:
@@ -768,11 +730,9 @@ class AudioConverter:
             ext = '.wav'
 
         base = os.path.splitext(os.path.basename(input_path))[0]
-        # Sanitize filename
         safe = re.sub(r'[<>:"/\\|?*]', '_', base)
         safe = re.sub(r'\s+', ' ', safe).strip()
 
-        # If preserving structure, build subpath
         if self.settings.preserve_structure and self.source_folder:
             rel = os.path.relpath(os.path.dirname(input_path), self.source_folder)
             if rel == '.':
@@ -793,9 +753,7 @@ class AudioConverter:
 
     def _convert_single_file(self, input_path: str, output_path: str, target_format: str,
                              settings: Dict[str, Any]) -> Tuple[bool, str]:
-        """Convert one file using ffmpeg."""
         try:
-            # Find codec
             codec = None
             for fmt in AUDIO_FORMATS.values():
                 if fmt['key'] == target_format:
@@ -804,13 +762,17 @@ class AudioConverter:
             if not codec:
                 return False, "Unknown format"
 
-            # Build ffmpeg command
             cmd = ['ffmpeg', '-y', '-i', input_path, '-map_metadata', '0']
 
-            # Audio codec
+            cmd.extend(['-map', '0:a'])
+
+            if self.settings.preserve_cover:
+                cmd.extend(['-map', '0:v?'])
+                cmd.extend(['-map', '0:t?'])
+                cmd.extend(['-c:v', 'copy'])
+
             cmd.extend(['-c:a', codec])
 
-            # Additional settings
             if 'sample_fmt' in settings:
                 cmd.extend(['-sample_fmt', settings['sample_fmt']])
             if 'sample_rate' in settings and settings['sample_rate']:
@@ -829,13 +791,11 @@ class AudioConverter:
 
             cmd.append(output_path)
 
-            # Run conversion
             result = subprocess.run(cmd, capture_output=True, text=True, check=False)
             if result.returncode != 0:
                 error_msg = result.stderr[:200] if result.stderr else "Unknown error"
                 return False, f"FFmpeg error: {error_msg}"
 
-            # Check output
             if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                 return True, "Success"
             else:
@@ -845,14 +805,12 @@ class AudioConverter:
             return False, str(e)
 
     def _print_progress(self, current: int, total: int, filename: str = ""):
-        """Print simple text progress bar (fallback when rich not available)."""
         if not self.settings.show_progress:
             return
         percent = (current / total) * 100
         bar_length = 40
         filled = int(bar_length * current // total)
         bar = '█' * filled + '░' * (bar_length - filled)
-        # Truncate filename to fit
         max_name_len = 30
         if len(filename) > max_name_len:
             filename = filename[:max_name_len-3] + '...'
@@ -861,14 +819,12 @@ class AudioConverter:
 
     def _run_conversion(self, files: List[str], target_format: str,
                         settings: Dict[str, Any], output_dir: str):
-        """Run conversion on all files."""
         self.total_files = len(files)
         self.converted_files = 0
         self.failed_files = 0
         self.skipped_files = 0
         self.start_time = time.time()
 
-        # Create log file
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = os.path.join(output_dir, f"conversion_log_{timestamp}.txt")
         with open(log_file, 'w', encoding='utf-8') as f:
@@ -878,14 +834,11 @@ class AudioConverter:
             f.write(f"Files: {self.total_files}\n")
             f.write("-" * 50 + "\n")
 
-        # Show dry-run warning
         if self.settings.dry_run:
             self._print(self.locale.t('dry_run_mode'), style="bold yellow")
 
-        # Initialize progress
         if self.settings.show_progress:
             if RICH_AVAILABLE and self.console:
-                # Use rich progress bar
                 progress = Progress(
                     TextColumn("[progress.description]{task.description}"),
                     BarColumn(),
@@ -897,7 +850,6 @@ class AudioConverter:
                 progress.start()
                 use_rich_progress = True
             else:
-                # Use simple text progress
                 progress = None
                 use_rich_progress = False
                 print(f"\n{self.locale.t('converting')}...")
@@ -915,27 +867,23 @@ class AudioConverter:
             elif self.settings.show_progress:
                 self._print_progress(i, len(files), filename)
 
-            # Generate output path
             output_path = self._get_output_path(input_path, output_dir, target_format)
 
-            # Skip if same extension and not deleting original (to avoid overwrite)
             input_ext = os.path.splitext(input_path)[1].lower()
             target_ext = None
             for fmt in AUDIO_FORMATS.values():
                 if fmt['key'] == target_format:
                     target_ext = fmt['ext']
                     break
-            if target_ext and input_ext == target_ext and not self.settings.delete_original:
+            if target_ext and input_ext == target_ext and not self.settings.delete_original and not self.settings.force_reencode:
                 self.skipped_files += 1
                 with open(log_file, 'a', encoding='utf-8') as f:
-                    f.write(f"[SKIPPED] {filename} - already in target format\n")
+                    f.write(f"[SKIPPED] {filename} - already in target format (force_reencode disabled)\n")
                 if use_rich_progress:
                     progress.advance(task)
                 continue
 
-            # Perform conversion (or dry-run)
             if self.settings.dry_run:
-                # Simulate success
                 self.converted_files += 1
                 with open(log_file, 'a', encoding='utf-8') as f:
                     f.write(f"[DRY-RUN] {filename} -> {os.path.basename(output_path)}\n")
@@ -961,20 +909,18 @@ class AudioConverter:
             if use_rich_progress:
                 progress.advance(task)
 
-        # Final newline after simple progress
         if self.settings.show_progress and not use_rich_progress and not RICH_AVAILABLE:
-            print()  # newline after progress bar
+            print()
 
         if use_rich_progress:
             progress.stop()
 
-        # Statistics
         elapsed = time.time() - self.start_time
         self._print_statistics(elapsed, log_file)
 
     def _print_statistics(self, elapsed: float, log_file: str):
-        """Show conversion statistics."""
         if self.console:
+            from rich.table import Table
             table = Table(title=self.locale.t('conversion_complete'))
             table.add_column(self.locale.t('stats_total'), justify="right")
             table.add_column(self.locale.t('stats_success'), justify="right")
@@ -1004,36 +950,27 @@ class AudioConverter:
     # ========================================================================
 
     def run_conversion_workflow(self, folder=None, files=None):
-        """
-        Main conversion process.
-        If folder is provided, skip folder selection.
-        If files is provided, convert only those files (ignoring folder scan).
-        """
-        # Check FFmpeg
+        self.clear_screen()
         if not self.ffmpeg_available:
             self._print(self.locale.t('error_ffmpeg'), style="red")
             return
 
-        # Step 1: Select source folder (if not provided)
         if folder is None:
             self._print(f"\n[bold]{self.locale.t('select_folder')}[/bold]")
             folder = self._get_folder()
             if not folder:
                 return
         else:
-            # If folder provided, we still need to ensure it exists
             if not os.path.isdir(folder):
                 self._print(self.locale.t('folder_not_found'), style="red")
                 return
             self._print(f"\n[bold]Using folder:[/bold] {folder}")
-        
-        self.source_folder = folder  # store for path preservation
 
-        # Step 2: Get list of files
+        self.source_folder = folder
+
         if files is None:
             files = self._scan_directory(folder, self.settings.recursive)
         else:
-            # Filter only existing files
             files = [f for f in files if os.path.isfile(f)]
             if not files:
                 self._print(self.locale.t('no_files'), style="red")
@@ -1043,133 +980,132 @@ class AudioConverter:
             self._print(self.locale.t('no_files'), style="red")
             return
 
-        self._print(f"\n{self.locale.t('files_found')}: {len(files)}")
-        # Show first 10 files
-        rows = []
-        for f in files[:10]:
-            info = self._get_file_info(f)
-            size = self._format_file_size(info['size'])
-            dur = self._format_duration(info['duration'])
-            rows.append((os.path.basename(f), info['codec'].upper(), size, dur))
-        if self.console:
-            table = Table(title=self.locale.t('file_list_title'))
-            table.add_column("File")
-            table.add_column("Codec")
-            table.add_column("Size")
-            table.add_column("Duration")
-            for row in rows:
-                table.add_row(*row)
-            self.console.print(table)
+        # ===== Показываем список файлов только по запросу =====
+        self._print(f"\n{self.locale.t('files_found')}: [bold]{len(files)}[/bold]")
+        if self.console and RICH_AVAILABLE:
+            if Confirm.ask("Show first 10 files?", default=False):
+                rows = []
+                for f in files[:10]:
+                    info = self._get_file_info(f)
+                    size = self._format_file_size(info['size'])
+                    dur = self._format_duration(info['duration'])
+                    rows.append((os.path.basename(f), info['codec'].upper(), size, dur))
+                table = Table(title=self.locale.t('file_list_title'))
+                table.add_column("File")
+                table.add_column("Codec")
+                table.add_column("Size")
+                table.add_column("Duration")
+                for row in rows:
+                    table.add_row(*row)
+                self.console.print(table)
+                if len(files) > 10:
+                    self._print(f"... and {len(files)-10} more")
         else:
             print(f"\n{self.locale.t('file_list_title')}:")
-            for row in rows:
-                print(f"  {row[0]}  {row[1]}  {row[2]}  {row[3]}")
-        if len(files) > 10:
-            self._print(f"... and {len(files)-10} more")
+            for f in files[:10]:
+                print(f"  {os.path.basename(f)}")
+            if len(files) > 10:
+                print(f"... and {len(files)-10} more")
+        # ===== Конец блока =====
 
-        # Step 3: Select output format
+        # Select output format (color-coded)
         self._print(f"\n[bold]{self.locale.t('select_format')}[/bold]")
         for key, fmt in AUDIO_FORMATS.items():
             name = self.locale.t(fmt['name_key'])
             desc = self.locale.t(fmt['desc_key'])
-            default_marker = " (default)" if fmt['key'] == self.settings.output_format else ""
-            print(f"  {key}. {name} - {desc}{default_marker}")
-        print(f"  0. {self.locale.t('cancel')}")
-        choice = self._prompt_choice(self.locale.t('enter_choice'), 
+            default_marker = " [green](default)[/green]" if fmt['key'] == self.settings.output_format else ""
+            self._print(f"[yellow][ {key} ][/yellow] [cyan]{name}[/cyan] - {desc}{default_marker}")
+        self._print("[yellow][ 0 ][/yellow] " + self.locale.t('cancel'))
+        choice = self._prompt_choice(self.locale.t('enter_choice'),
                                      [str(i) for i in range(0, len(AUDIO_FORMATS)+1)])
         if choice == "0":
             return
         format_info = AUDIO_FORMATS[choice]
         target_format = format_info['key']
 
-        # Step 4: Configure settings for this format
+        # Configure settings (color-coded)
         self._print(f"\n[bold]{self.locale.t('select_settings')}[/bold]")
         conv_settings = {}
-        # Determine lossless/lossy
         is_lossless = format_info.get('lossless', False)
 
         if is_lossless:
-            # Bit depth (sample format)
             if 'sample_formats' in format_info:
-                print(f"\n{self.locale.t('bit_depth')}:")
+                self._print(f"\n[cyan]{self.locale.t('bit_depth')}:[/cyan]")
                 for sk, sf in format_info['sample_formats'].items():
                     name = self.locale.t(sf['name_key'])
                     default = sf.get('default', False)
-                    marker = " (default)" if default else ""
-                    print(f"  {sk}. {name}{marker}")
-                print(f"  0. {self.locale.t('original')}")
+                    marker = " [green](default)[/green]" if default else ""
+                    self._print(f"[yellow][ {sk} ][/yellow] {name}{marker}")
+                self._print("[yellow][ 0 ][/yellow] " + self.locale.t('original'))
                 choice = self._prompt_choice(self.locale.t('enter_choice'),
                                              [str(i) for i in range(0, len(format_info['sample_formats'])+1)])
                 if choice != "0":
                     conv_settings['sample_fmt'] = format_info['sample_formats'][choice]['key']
-            # Compression level (FLAC)
             if 'compression_levels' in format_info:
-                print(f"\n{self.locale.t('compression')}:")
+                self._print(f"\n[cyan]{self.locale.t('compression')}:[/cyan]")
                 for ck, cl in format_info['compression_levels'].items():
                     name = self.locale.t(cl['name_key'])
                     default = cl.get('default', False)
-                    marker = " (default)" if default else ""
-                    print(f"  {ck}. {name} (level {cl['level']}){marker}")
-                print(f"  0. {self.locale.t('default')}")
+                    marker = " [green](default)[/green]" if default else ""
+                    self._print(f"[yellow][ {ck} ][/yellow] {name} (level {cl['level']}){marker}")
+                self._print("[yellow][ 0 ][/yellow] " + self.locale.t('default'))
                 choice = self._prompt_choice(self.locale.t('enter_choice'),
                                              [str(i) for i in range(0, len(format_info['compression_levels'])+1)])
                 if choice != "0":
                     conv_settings['compression_level'] = format_info['compression_levels'][choice]['level']
         else:
-            # Bitrate
             if 'bitrates' in format_info:
-                print(f"\n{self.locale.t('bitrate')}:")
+                self._print(f"\n[cyan]{self.locale.t('bitrate')}:[/cyan]")
                 for bk, br in format_info['bitrates'].items():
                     name = self.locale.t(br['name_key'])
                     default = br.get('default', False)
-                    marker = " (default)" if default else ""
-                    print(f"  {bk}. {br['bitrate']} ({name}){marker}")
-                print(f"  0. {self.locale.t('default')}")
+                    marker = " [green](default)[/green]" if default else ""
+                    self._print(f"[yellow][ {bk} ][/yellow] [magenta]{br['bitrate']}[/magenta] ({name}){marker}")
+                self._print("[yellow][ 0 ][/yellow] " + self.locale.t('default'))
                 choice = self._prompt_choice(self.locale.t('enter_choice'),
                                              [str(i) for i in range(0, len(format_info['bitrates'])+1)])
                 if choice != "0":
                     conv_settings['bitrate'] = format_info['bitrates'][choice]['bitrate']
-            # Quality (MP3, OGG)
             if 'qualities' in format_info:
-                print(f"\n{self.locale.t('quality')}:")
+                self._print(f"\n[cyan]{self.locale.t('quality')}:[/cyan]")
                 for qk, qv in format_info['qualities'].items():
                     name = self.locale.t(qv['name_key'])
                     default = qv.get('default', False)
-                    marker = " (default)" if default else ""
-                    print(f"  {qk}. {name} (level {qv['quality']}){marker}")
-                print(f"  0. {self.locale.t('default')}")
+                    marker = " [green](default)[/green]" if default else ""
+                    self._print(f"[yellow][ {qk} ][/yellow] {name} (level {qv['quality']}){marker}")
+                self._print("[yellow][ 0 ][/yellow] " + self.locale.t('default'))
                 choice = self._prompt_choice(self.locale.t('enter_choice'),
                                              [str(i) for i in range(0, len(format_info['qualities'])+1)])
                 if choice != "0":
                     conv_settings['quality'] = format_info['qualities'][choice]['quality']
 
-        # Sample rate
-        print(f"\n{self.locale.t('setting_sample_rate')}:")
+        # Sample rate (color-coded)
+        self._print(f"\n[cyan]{self.locale.t('setting_sample_rate')}:[/cyan]")
         for srk, sr in SAMPLE_RATES.items():
             name = self.locale.t(sr['name_key'])
             default = sr.get('default', False)
-            marker = " (default)" if default else ""
-            print(f"  {srk}. {sr['rate']} Hz - {name}{marker}")
-        print(f"  0. {self.locale.t('original')}")
+            marker = " [green](default)[/green]" if default else ""
+            self._print(f"[yellow][ {srk} ][/yellow] [magenta]{sr['rate']} Hz[/magenta] - {name}{marker}")
+        self._print("[yellow][ 0 ][/yellow] " + self.locale.t('original'))
         choice = self._prompt_choice(self.locale.t('enter_choice'),
                                      [str(i) for i in range(0, len(SAMPLE_RATES)+1)])
         if choice != "0":
             conv_settings['sample_rate'] = SAMPLE_RATES[choice]['rate']
 
-        # Channels
-        print(f"\n{self.locale.t('setting_channels')}:")
+        # Channels (color-coded)
+        self._print(f"\n[cyan]{self.locale.t('setting_channels')}:[/cyan]")
         for chk, ch in CHANNELS.items():
             name = self.locale.t(ch['name_key'])
             default = ch.get('default', False)
-            marker = " (default)" if default else ""
-            print(f"  {chk}. {ch['channels']} channels - {name}{marker}")
-        print(f"  0. {self.locale.t('original')}")
+            marker = " [green](default)[/green]" if default else ""
+            self._print(f"[yellow][ {chk} ][/yellow] [magenta]{ch['channels']} channels[/magenta] - {name}{marker}")
+        self._print("[yellow][ 0 ][/yellow] " + self.locale.t('original'))
         choice = self._prompt_choice(self.locale.t('enter_choice'),
                                      [str(i) for i in range(0, len(CHANNELS)+1)])
         if choice != "0":
             conv_settings['channels'] = CHANNELS[choice]['channels']
 
-        # Step 5: Output folder
+        # Output folder
         self._print(f"\n[bold]{self.locale.t('output_folder')}[/bold]")
         default_output = os.path.join(folder, f"converted_{target_format.upper()}")
         print(f"{self.locale.t('default')}: {default_output}")
@@ -1184,32 +1120,32 @@ class AudioConverter:
             self._print(f"Error creating output folder: {e}", style="red")
             return
 
-        # Step 6: Confirm
+        # Confirm (color-coded summary)
         if not self.settings.auto_confirm:
             print(f"\n[bold]Summary:[/bold]")
-            print(f"  Source: {folder}")
-            print(f"  Output: {out_path}")
-            print(f"  Format: {target_format.upper()}")
-            print(f"  Files: {len(files)}")
+            print(f"  [cyan]Source:[/cyan] {folder}")
+            print(f"  [green]Output:[/green] {out_path}")
+            print(f"  [yellow]Format:[/yellow] {target_format.upper()}")
+            print(f"  [white]Files:[/white] {len(files)}")
+            cover_status = "[green]Yes[/green]" if self.settings.preserve_cover else "[red]No[/red]"
+            force_status = "[green]Yes[/green]" if self.settings.force_reencode else "[red]No[/red]"
+            print(f"  [cyan]Preserve cover:[/cyan] {cover_status}")
+            print(f"  [cyan]Force re-encode:[/cyan] {force_status}")
             if self.settings.dry_run:
-                print(f"  [yellow]{self.locale.t('dry_run_mode')}[/yellow]")
+                self._print(f"  [yellow]{self.locale.t('dry_run_mode')}[/yellow]")
             if not self._confirm(self.locale.t('confirm_start'), default=True):
                 return
 
-        # Step 7: Run conversion
         self._run_conversion(files, target_format, conv_settings, out_path)
-
-        # Post-conversion options
         self._post_conversion_menu()
 
     def _post_conversion_menu(self):
-        """Menu after conversion."""
         while True:
-            clear_screen()
+            self.clear_screen()
             print("\n" + "─" * 40)
-            print(f"1. {self.locale.t('menu_start')}")
-            print(f"2. {self.locale.t('back')}")
-            print(f"0. {self.locale.t('menu_exit')}")
+            self._print("[green][ 1 ][/green] " + self.locale.t('menu_start'))
+            self._print("[blue][ 2 ][/blue] " + self.locale.t('back'))
+            self._print("[red][ 0 ][/red] " + self.locale.t('menu_exit'))
             choice = self._prompt_choice(self.locale.t('enter_choice'), ['0','1','2'])
             if choice == "0":
                 sys.exit(0)
@@ -1224,27 +1160,28 @@ class AudioConverter:
     # ========================================================================
 
     def settings_menu(self):
-        """Show settings menu."""
         while True:
-            clear_screen()
+            self.clear_screen()
             if self.console:
-                self.console.print(f"[bold]{self.locale.t('settings_title')}[/bold]")
+                self.console.print(f"[bold blue]{self.locale.t('settings_title')}[/bold blue]")
             else:
                 print(f"\n{self.locale.t('settings_title')}")
 
-            # Простой список настроек без иконок, но с цветными номерами
-            print("1. " + self.locale.t('setting_language') + f": {self.settings.language.upper()}")
-            print("2. " + self.locale.t('setting_delete_original') + f": {self.settings.delete_original}")
-            print("3. " + self.locale.t('setting_recursive') + f": {self.settings.recursive}")
-            print("4. " + self.locale.t('setting_preserve_structure') + f": {self.settings.preserve_structure}")
-            print("5. " + self.locale.t('setting_dry_run') + f": {self.settings.dry_run}")
-            print("6. " + self.locale.t('setting_auto_confirm') + f": {self.settings.auto_confirm}")
-            print("7. " + self.locale.t('setting_output_format') + f": {self.settings.output_format}")
-            print("8. " + self.locale.t('setting_show_progress') + f": {self.settings.show_progress}")
-            print("0. " + self.locale.t('back'))
+            # Все пункты в стиле [ 1 ] с цветными значениями
+            self._print(f"[yellow][ 1 ][/yellow] {self.locale.t('setting_language')}: [bold cyan]{self.settings.language.upper()}[/bold cyan]")
+            self._print(f"[yellow][ 2 ][/yellow] {self.locale.t('setting_delete_original')}: [bold cyan]{self.settings.delete_original}[/bold cyan]")
+            self._print(f"[yellow][ 3 ][/yellow] {self.locale.t('setting_recursive')}: [bold cyan]{self.settings.recursive}[/bold cyan]")
+            self._print(f"[yellow][ 4 ][/yellow] {self.locale.t('setting_preserve_structure')}: [bold cyan]{self.settings.preserve_structure}[/bold cyan]")
+            self._print(f"[yellow][ 5 ][/yellow] {self.locale.t('setting_dry_run')}: [bold cyan]{self.settings.dry_run}[/bold cyan]")
+            self._print(f"[yellow][ 6 ][/yellow] {self.locale.t('setting_auto_confirm')}: [bold cyan]{self.settings.auto_confirm}[/bold cyan]")
+            self._print(f"[yellow][ 7 ][/yellow] {self.locale.t('setting_output_format')}: [bold cyan]{self.settings.output_format}[/bold cyan]")
+            self._print(f"[yellow][ 8 ][/yellow] {self.locale.t('setting_show_progress')}: [bold cyan]{self.settings.show_progress}[/bold cyan]")
+            self._print(f"[yellow][ 9 ][/yellow] {self.locale.t('setting_preserve_cover')}: [bold cyan]{self.settings.preserve_cover}[/bold cyan]")
+            self._print(f"[yellow][ a ][/yellow] {self.locale.t('setting_force_reencode')}: [bold cyan]{self.settings.force_reencode}[/bold cyan]")
+            self._print(f"[red][ 0 ][/red] {self.locale.t('back')}")
 
-            choice = self._prompt_choice(self.locale.t('enter_choice'), 
-                                         [str(i) for i in range(0, 9)])
+            choice = self._prompt_choice(self.locale.t('enter_choice'),
+                                         ['0','1','2','3','4','5','6','7','8','9','a'])
             if choice == "0":
                 self.settings.save()
                 return
@@ -1269,10 +1206,10 @@ class AudioConverter:
                 self.settings.auto_confirm = not self.settings.auto_confirm
                 self.settings.save()
             elif choice == "7":
-                print(f"\n{self.locale.t('setting_output_format')}:")
+                self._print(f"\n[cyan]{self.locale.t('setting_output_format')}:[/cyan]")
                 for key, fmt in AUDIO_FORMATS.items():
                     name = self.locale.t(fmt['name_key'])
-                    print(f"  {key}. {name}")
+                    self._print(f"[yellow][ {key} ][/yellow] {name}")
                 fmt_choice = self._prompt_choice(self.locale.t('enter_choice'),
                                                  [str(i) for i in range(1, len(AUDIO_FORMATS)+1)])
                 self.settings.output_format = AUDIO_FORMATS[fmt_choice]['key']
@@ -1280,39 +1217,48 @@ class AudioConverter:
             elif choice == "8":
                 self.settings.show_progress = not self.settings.show_progress
                 self.settings.save()
+            elif choice == "9":
+                self.settings.preserve_cover = not self.settings.preserve_cover
+                self.settings.save()
+            elif choice == "a":
+                self.settings.force_reencode = not self.settings.force_reencode
+                self.settings.save()
 
     # ========================================================================
     # About / FFmpeg Info
     # ========================================================================
 
     def show_about(self):
-        clear_screen()
+        self.clear_screen()
         if self.console:
-            self.console.print(Panel(f"[bold]{self.locale.t('program_name')}[/bold]\n"
-                                     f"{self.locale.t('about_version')}\n"
-                                     f"{self.locale.t('about_desc')}\n\n"
-                                     f"[bold]{self.locale.t('about_features')}:[/bold]\n"
-                                     f"• {len(AUDIO_FORMATS)} output formats\n"
-                                     f"• {len(SUPPORTED_INPUT_EXTENSIONS)} input formats\n"
-                                     f"• Batch conversion, recursive scan\n"
-                                     f"• Bit depth, sample rate, channel settings\n"
-                                     f"• Dry-run mode, auto-confirm\n"
-                                     f"• Russian/English interface\n"
-                                     f"• Drag & drop support\n"
-                                     f"• Progress bar (rich or fallback)\n\n"
-                                     f"[bold]{self.locale.t('about_tech')}:[/bold]\n"
-                                     f"• Python 3.6+, FFmpeg\n"
-                                     f"• rich, tkinter (optional)",
-                                     title=self.locale.t('about_title')))
+            self.console.print(Panel(
+                f"[bold magenta]{self.locale.t('program_name')}[/bold magenta]\n"
+                f"[cyan]{self.locale.t('about_version')}[/cyan]\n"
+                f"{self.locale.t('about_desc')}\n\n"
+                f"[bold green]{self.locale.t('about_features')}:[/bold green]\n"
+                f"• {len(AUDIO_FORMATS)} output formats\n"
+                f"• {len(SUPPORTED_INPUT_EXTENSIONS)} input formats\n"
+                f"• Batch conversion, recursive scan\n"
+                f"• Bit depth, sample rate, channel settings\n"
+                f"• Dry-run mode, auto-confirm\n"
+                f"• Russian/English interface\n"
+                f"• Drag & drop support\n"
+                f"• Progress bar (rich or fallback)\n"
+                f"• Preserve cover art (toggle in settings)\n"
+                f"• Force re-encode even if same format\n\n"
+                f"[bold blue]{self.locale.t('about_tech')}:[/bold blue]\n"
+                f"• Python 3.6+, FFmpeg\n"
+                f"• rich, tkinter (optional)",
+                title=self.locale.t('about_title')
+            ))
         else:
             print(f"\n{self.locale.t('program_name')} {self.locale.t('about_version')}")
             print(self.locale.t('about_desc'))
-            print(f"{self.locale.t('about_features')}: ...")
         input(f"\n{self.locale.t('press_enter')}")
 
     def show_ffmpeg_info(self):
-        clear_screen()
-        print(f"\n{self.locale.t('menu_ffmpeg')}:")
+        self.clear_screen()
+        self._print(f"\n[bold cyan]{self.locale.t('menu_ffmpeg')}:[/bold cyan]")
         if self.ffmpeg_available:
             try:
                 result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True, check=False)
@@ -1333,15 +1279,17 @@ class AudioConverter:
     # ========================================================================
 
     def main_menu(self):
-        """Main program loop."""
         while True:
-            clear_screen()
-            # Build header with current folder and dry-run status
+            self.clear_screen()
             folder_info = self.source_folder if self.source_folder else "[dim]Not selected[/dim]"
             dry_run_status = "[bold red]ON[/bold red]" if self.settings.dry_run else "[bold green]OFF[/bold green]"
+            cover_status = "[bold green]ON[/bold green]" if self.settings.preserve_cover else "[dim]OFF[/dim]"
+            force_status = "[bold green]ON[/bold green]" if self.settings.force_reencode else "[dim]OFF[/dim]"
             header = (
                 f"[dim]Folder:[/dim] [bold cyan]{folder_info}[/bold cyan]\n"
-                f"[dim]Dry-Run:[/dim] {dry_run_status}"
+                f"[dim]Dry-Run:[/dim] {dry_run_status}\n"
+                f"[dim]Preserve Cover:[/dim] {cover_status}\n"
+                f"[dim]Force Re-encode:[/dim] {force_status}"
             )
             if self.console:
                 self.console.print(Panel(header, title=f"[bold magenta]{self.locale.t('program_name')}[/bold magenta]", expand=False, box=box.ROUNDED))
@@ -1349,29 +1297,30 @@ class AudioConverter:
                 print(f"\n{self.locale.t('program_name')}")
                 print(f"Folder: {folder_info}")
                 print(f"Dry-Run: {dry_run_status}")
+                print(f"Preserve Cover: {self.settings.preserve_cover}")
+                print(f"Force Re-encode: {self.settings.force_reencode}")
 
-            # Стильное меню без иконок, но с цветами
+            # Главное меню с цветами
             if self.console:
                 menu_table = Table(box=box.SIMPLE, show_header=False)
-                menu_table.add_column("Key", style="bold yellow", justify="right")
+                menu_table.add_column("Key", style="bold yellow", justify="right", width=6)
                 menu_table.add_column("Action", style="white")
-                
-                # Группировка с разделителями (пустые строки)
-                menu_table.add_row("1", self.locale.t('menu_start'))
-                menu_table.add_row("")
-                menu_table.add_row("2", self.locale.t('menu_settings'))
-                menu_table.add_row("3", self.locale.t('menu_ffmpeg'))
-                menu_table.add_row("4", self.locale.t('menu_about'))
-                menu_table.add_row("")
-                menu_table.add_row("0", f"[dim]{self.locale.t('menu_exit')}[/dim]")
-                
+                menu_table.add_row("[ 1 ]", "[bold green]Start conversion[/bold green]")
+                menu_table.add_row("", "")
+                menu_table.add_row("[ 2 ]", "[bold blue]Settings[/bold blue]")
+                menu_table.add_row("[ 3 ]", "[bold yellow]FFmpeg info[/bold yellow]")
+                menu_table.add_row("[ 4 ]", "[bold cyan]About[/bold cyan]")
+                menu_table.add_row("", "")
+                menu_table.add_row("[ 0 ]", "[bold red]Exit[/bold red]")
                 self.console.print(menu_table)
             else:
-                print("\n1. " + self.locale.t('menu_start'))
-                print("2. " + self.locale.t('menu_settings'))
-                print("3. " + self.locale.t('menu_ffmpeg'))
-                print("4. " + self.locale.t('menu_about'))
-                print("0. " + self.locale.t('menu_exit'))
+                print("\n[ 1 ] " + self.locale.t('menu_start'))
+                print("")
+                print("[ 2 ] " + self.locale.t('menu_settings'))
+                print("[ 3 ] " + self.locale.t('menu_ffmpeg'))
+                print("[ 4 ] " + self.locale.t('menu_about'))
+                print("")
+                print("[ 0 ] " + self.locale.t('menu_exit'))
 
             choice = self._prompt_choice(self.locale.t('enter_choice'), ['0','1','2','3','4'])
             if choice == "0":
@@ -1394,14 +1343,12 @@ class AudioConverter:
 def main():
     try:
         converter = AudioConverter()
-        # Parse command line arguments (drag & drop)
         args = sys.argv[1:]
         if args:
-            # First argument is path (can be folder or file)
             first_path = os.path.abspath(args[0])
             if os.path.isdir(first_path):
                 folder = first_path
-                files = None  # will scan folder later
+                files = None
             elif os.path.isfile(first_path):
                 folder = os.path.dirname(first_path)
                 files = [first_path]
@@ -1411,13 +1358,11 @@ def main():
 
             if folder:
                 converter.source_folder = folder
-                # Ask user if they want to start conversion with this folder
                 print(f"\n[bold]Detected drag & drop:[/bold] {folder}")
                 if converter._confirm("Start conversion with this folder?", default=True):
                     converter.run_conversion_workflow(folder=folder, files=files)
                     return
 
-        # No args or user cancelled – show main menu
         converter.main_menu()
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user.")

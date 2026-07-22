@@ -1,8 +1,11 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 """
-MetaForge v3.1 - Professional Audio Metadata Editor
+MetaForge v3.2 - Professional Audio Metadata Editor
 Author: DJ Denicore
 Description: Advanced tool for editing audio metadata with cover art support
-Features: ffprobe integration, Drag & Drop support
+Features: ffprobe integration, Drag & Drop support, improved menu style
 """
 
 import os
@@ -42,7 +45,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 console = Console()
 
 # ================= SETTINGS =================
-VERSION = "3.1"
+VERSION = "3.2"
 APP_NAME = "MetaForge"
 
 SUPPORTED_EXT = (".mp3", ".flac", ".ogg", ".wav", ".m4a", ".aac", ".opus")
@@ -990,24 +993,34 @@ def draw_main_menu():
     )
     console.print(Panel(header, title=f"[bold magenta]{t('app_title')}[/bold magenta]", expand=False, box=box.ROUNDED))
     
+    # Новое меню со стилем "[ 1 ]"
     menu_table = Table(box=box.SIMPLE, show_header=False)
-    menu_table.add_column("Key", style="bold yellow", justify="right")
+    menu_table.add_column("Key", style="bold yellow", justify="right", width=6)
     menu_table.add_column("Action", style="white")
     
-    menu_table.add_row("1", t("artist_track"))
-    menu_table.add_row("2", t("tracknum_artist_track"))
-    menu_table.add_row("3", t("all_title"))
-    menu_table.add_row("")
-    menu_table.add_row("4", t("rename_basic"))
-    menu_table.add_row("5", t("rename_tracknum"))
-    menu_table.add_row("")
-    menu_table.add_row("6", f"[bold green]{t('add_covers')}[/bold green]")
-    menu_table.add_row("")
-    menu_table.add_row("7", t("toggle_dry_run"))
-    menu_table.add_row("8", t("change_folder"))
-    menu_table.add_row("9", t("settings"))
-    menu_table.add_row("")
-    menu_table.add_row("0", f"[dim]{t('exit')}[/dim]")
+    # Пункты 1-3 (запись тегов)
+    menu_table.add_row("[ 1 ]", t("artist_track"))
+    menu_table.add_row("[ 2 ]", t("tracknum_artist_track"))
+    menu_table.add_row("[ 3 ]", t("all_title"))
+    menu_table.add_row("", "")  # разделитель
+    
+    # Пункты 4-5 (переименование)
+    menu_table.add_row("[ 4 ]", t("rename_basic"))
+    menu_table.add_row("[ 5 ]", t("rename_tracknum"))
+    menu_table.add_row("", "")
+    
+    # Пункт 6 (обложки)
+    menu_table.add_row("[ 6 ]", f"[bold green]{t('add_covers')}[/bold green]")
+    menu_table.add_row("", "")
+    
+    # Пункты 7-9 (управление)
+    menu_table.add_row("[ 7 ]", t("toggle_dry_run"))
+    menu_table.add_row("[ 8 ]", t("change_folder"))
+    menu_table.add_row("[ 9 ]", t("settings"))
+    menu_table.add_row("", "")
+    
+    # Выход
+    menu_table.add_row("[ 0 ]", f"[dim]{t('exit')}[/dim]")
     
     console.print(menu_table)
     console.print()
@@ -1062,7 +1075,6 @@ if __name__ == "__main__":
                 folder = None
             
             if folder:
-                # Убираем global CURRENT_FOLDER - она уже глобальная
                 CURRENT_FOLDER = folder
                 console.print(f"\n[bold green]📁 {t('drag_drop_detected')}:[/bold green] {folder}")
                 if Confirm.ask(f"[bold]Process files in this folder?[/bold]", default=True):
